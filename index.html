@@ -1,0 +1,1032 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pulsewave — See every request before it becomes an incident</title>
+<meta name="description" content="Pulsewave is real-time API observability for teams who can't afford to find out about outages from Twitter.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0B0D10;
+    --surface:#12151A;
+    --surface-2:#181C22;
+    --surface-3:#1F242C;
+    --text:#E9E7E2;
+    --muted:#8B92A0;
+    --accent:#00E5C7;
+    --accent-dim:#0A3A34;
+    --accent-2:#FF6B4A;
+    --border:rgba(255,255,255,0.09);
+    --border-strong:rgba(255,255,255,0.16);
+    --shadow:0 20px 60px rgba(0,0,0,0.45);
+    --radius:14px;
+    --font-display:'Space Grotesk', sans-serif;
+    --font-body:'Inter', sans-serif;
+    --font-mono:'JetBrains Mono', monospace;
+  }
+  html.light{
+    --bg:#F3F2EE;
+    --surface:#FFFFFF;
+    --surface-2:#ECEBE6;
+    --surface-3:#E2E0DA;
+    --text:#14171C;
+    --muted:#5B6270;
+    --accent:#00A88E;
+    --accent-dim:#D6F3EE;
+    --accent-2:#E0552C;
+    --border:rgba(20,23,28,0.09);
+    --border-strong:rgba(20,23,28,0.18);
+    --shadow:0 20px 50px rgba(20,23,28,0.10);
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  @media (prefers-reduced-motion: reduce){
+    html{scroll-behavior:auto;}
+    *{animation-duration:0.001ms !important; animation-iteration-count:1 !important; transition-duration:0.001ms !important;}
+  }
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--font-body);
+    line-height:1.5;
+    transition:background .35s ease, color .35s ease;
+    overflow-x:hidden;
+  }
+  img,svg{display:block; max-width:100%;}
+  a{color:inherit; text-decoration:none;}
+  ul{list-style:none;}
+  button{font-family:inherit; cursor:pointer;}
+  .wrap{max-width:1180px; margin:0 auto; padding:0 28px;}
+  .eyebrow{
+    font-family:var(--font-mono);
+    font-size:12.5px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--accent);
+    display:inline-flex; align-items:center; gap:8px;
+    margin-bottom:16px;
+  }
+  .eyebrow::before{content:''; width:7px; height:7px; border-radius:50%; background:var(--accent); box-shadow:0 0 0 4px var(--accent-dim);}
+  h1,h2,h3,h4{font-family:var(--font-display); font-weight:600; letter-spacing:-0.01em;}
+  .section-head{max-width:640px; margin-bottom:52px;}
+  .section-head h2{font-size:clamp(28px,3.6vw,42px); line-height:1.12;}
+  .section-head p{color:var(--muted); font-size:17px; margin-top:14px;}
+  section{padding:108px 0; position:relative;}
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    padding:13px 24px; border-radius:9px; font-weight:600; font-size:14.5px;
+    border:1px solid transparent; transition:transform .18s ease, box-shadow .18s ease, background .18s ease, border-color .18s ease;
+    white-space:nowrap;
+  }
+  .btn:active{transform:scale(0.97);}
+  .btn-primary{background:var(--accent); color:#04211D;}
+  .btn-primary:hover{box-shadow:0 8px 26px -6px var(--accent); transform:translateY(-1px);}
+  .btn-ghost{background:transparent; color:var(--text); border-color:var(--border-strong);}
+  .btn-ghost:hover{border-color:var(--accent); color:var(--accent);}
+  .btn:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible, [tabindex]:focus-visible{
+    outline:2px solid var(--accent); outline-offset:3px;
+  }
+
+  /* ---------- scroll progress (signature waveform) ---------- */
+  #pulse-progress{position:fixed; top:0; left:0; width:100%; height:3px; z-index:1000; background:transparent;}
+  #pulse-progress svg{width:100%; height:100%; display:block;}
+  #pulse-fill{stroke:var(--accent); stroke-width:3; fill:none; filter:drop-shadow(0 0 5px var(--accent));}
+
+  /* ---------- nav ---------- */
+  header{
+    position:fixed; top:3px; left:0; right:0; z-index:900;
+    background:color-mix(in srgb, var(--bg) 78%, transparent);
+    backdrop-filter:blur(14px) saturate(140%);
+    border-bottom:1px solid var(--border);
+    transition:background .35s ease, border-color .35s ease;
+  }
+  nav{display:flex; align-items:center; justify-content:space-between; padding:16px 28px; max-width:1180px; margin:0 auto;}
+  .logo{display:flex; align-items:center; gap:9px; font-family:var(--font-display); font-weight:700; font-size:19px;}
+  .logo-mark{width:26px; height:26px;}
+  .nav-links{display:flex; gap:30px; align-items:center;}
+  .nav-links a{font-size:14.5px; color:var(--muted); font-weight:500; transition:color .2s;}
+  .nav-links a:hover{color:var(--text);}
+  .nav-actions{display:flex; align-items:center; gap:12px;}
+  .theme-toggle{
+    width:38px; height:38px; border-radius:9px; border:1px solid var(--border-strong);
+    background:var(--surface-2); display:flex; align-items:center; justify-content:center;
+    color:var(--text); transition:border-color .2s;
+  }
+  .theme-toggle:hover{border-color:var(--accent);}
+  .theme-toggle svg{width:17px; height:17px;}
+  .hamburger{display:none; width:38px; height:38px; border-radius:9px; border:1px solid var(--border-strong); background:var(--surface-2); align-items:center; justify-content:center;}
+  .hamburger svg{width:18px; height:18px;}
+  #mobile-menu{
+    display:none; flex-direction:column; gap:2px; padding:10px 28px 20px; border-top:1px solid var(--border);
+  }
+  #mobile-menu a{padding:12px 4px; font-size:15px; color:var(--muted); border-bottom:1px solid var(--border);}
+  #mobile-menu.open{display:flex;}
+
+  /* ---------- hero ---------- */
+  .hero{padding:170px 0 100px; position:relative; overflow:hidden;}
+  .hero-bg{position:absolute; inset:0; z-index:0; opacity:.55;}
+  .hero-inner{position:relative; z-index:1; text-align:center; max-width:780px; margin:0 auto;}
+  .hero h1{font-size:clamp(38px,6vw,68px); line-height:1.05; letter-spacing:-0.02em;}
+  .hero h1 .accent{color:var(--accent);}
+  .hero p.lead{color:var(--muted); font-size:18px; max-width:560px; margin:22px auto 0;}
+  .hero-cta{display:flex; gap:14px; justify-content:center; margin-top:34px; flex-wrap:wrap;}
+  .hero-note{margin-top:18px; font-family:var(--font-mono); font-size:12.5px; color:var(--muted);}
+
+  .trace-preview{
+    margin-top:64px; border-radius:18px; border:1px solid var(--border); background:var(--surface);
+    box-shadow:var(--shadow); overflow:hidden; position:relative; z-index:1;
+  }
+  .trace-top{display:flex; align-items:center; justify-content:space-between; padding:14px 20px; border-bottom:1px solid var(--border); background:var(--surface-2);}
+  .trace-dots{display:flex; gap:6px;}
+  .trace-dots span{width:9px; height:9px; border-radius:50%; background:var(--border-strong);}
+  .trace-label{font-family:var(--font-mono); font-size:12px; color:var(--muted);}
+  .trace-body{padding:26px 26px 8px; display:grid; grid-template-columns:1fr 1fr 1fr; gap:18px;}
+  .trace-stat{text-align:left;}
+  .trace-stat .num{font-family:var(--font-mono); font-size:22px; font-weight:600; color:var(--accent);}
+  .trace-stat .lbl{font-size:12px; color:var(--muted); margin-top:2px;}
+  .trace-graph{padding:6px 26px 26px;}
+
+  /* ---------- logo strip ---------- */
+  .logo-strip{padding:44px 0; border-top:1px solid var(--border); border-bottom:1px solid var(--border);}
+  .logo-strip .wrap{display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:24px;}
+  .logo-strip span.tag{font-family:var(--font-mono); font-size:12px; color:var(--muted); letter-spacing:.08em; text-transform:uppercase;}
+  .logo-strip .marks{display:flex; gap:40px; flex-wrap:wrap; align-items:center;}
+  .logo-strip .marks div{font-family:var(--font-display); font-weight:600; color:var(--muted); font-size:16px; opacity:.7;}
+
+  /* ---------- feature cards ---------- */
+  .feature-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:18px;}
+  .feature-card{
+    background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+    padding:26px; transition:transform .25s ease, border-color .25s ease, box-shadow .25s ease;
+    position:relative; overflow:hidden;
+  }
+  .feature-card:hover{transform:translateY(-4px); border-color:var(--accent); box-shadow:var(--shadow);}
+  .feature-card .fi{width:38px; height:38px; border-radius:9px; background:var(--accent-dim); display:flex; align-items:center; justify-content:center; margin-bottom:18px;}
+  .feature-card .fi svg{width:19px; height:19px; stroke:var(--accent);}
+  .feature-card h3{font-size:16.5px; margin-bottom:8px;}
+  .feature-card p{font-size:14px; color:var(--muted); line-height:1.55;}
+  .feature-card .tag{
+    position:absolute; top:20px; right:20px; font-family:var(--font-mono); font-size:10.5px; color:var(--muted);
+    border:1px solid var(--border); padding:3px 8px; border-radius:20px; opacity:0; transition:opacity .25s;
+  }
+  .feature-card:hover .tag{opacity:1;}
+
+  /* ---------- stats ---------- */
+  .stats-band{background:var(--surface); border-top:1px solid var(--border); border-bottom:1px solid var(--border);}
+  .stats-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:0;}
+  .stat-cell{padding:52px 24px; text-align:center; border-left:1px solid var(--border);}
+  .stat-cell:first-child{border-left:none;}
+  .stat-cell .num{font-family:var(--font-mono); font-size:clamp(30px,4vw,44px); font-weight:600; color:var(--accent);}
+  .stat-cell .lbl{color:var(--muted); font-size:13.5px; margin-top:8px;}
+
+  /* ---------- pricing ---------- */
+  .pricing-toggle{display:flex; align-items:center; justify-content:center; gap:14px; margin-bottom:52px;}
+  .pricing-toggle span{font-size:14px; color:var(--muted); font-weight:500;}
+  .pricing-toggle span.active{color:var(--text);}
+  .switch{width:48px; height:26px; border-radius:20px; background:var(--surface-3); border:1px solid var(--border-strong); position:relative; transition:background .2s;}
+  .switch::after{content:''; position:absolute; width:20px; height:20px; border-radius:50%; background:var(--accent); top:2px; left:2px; transition:transform .25s cubic-bezier(.4,0,.2,1);}
+  .switch.on::after{transform:translateX(22px);}
+  .save-badge{font-family:var(--font-mono); font-size:11px; background:var(--accent-dim); color:var(--accent); padding:3px 8px; border-radius:20px;}
+
+  .pricing-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:20px; align-items:stretch;}
+  .plan{
+    background:var(--surface); border:1px solid var(--border); border-radius:18px; padding:32px 28px;
+    display:flex; flex-direction:column; transition:transform .25s ease, box-shadow .25s ease, border-color .25s;
+  }
+  .plan.popular{border-color:var(--accent); box-shadow:0 0 0 1px var(--accent), var(--shadow); transform:scale(1.02);}
+  .plan .badge{font-family:var(--font-mono); font-size:11px; color:var(--accent); text-transform:uppercase; letter-spacing:.08em; margin-bottom:12px;}
+  .plan h3{font-size:19px; margin-bottom:6px;}
+  .plan .desc{font-size:13.5px; color:var(--muted); margin-bottom:22px;}
+  .plan .price{font-family:var(--font-mono); font-size:40px; font-weight:600; display:flex; align-items:baseline; gap:6px;}
+  .plan .price span.per{font-size:14px; color:var(--muted); font-weight:400; font-family:var(--font-body);}
+  .plan .billed{font-size:12.5px; color:var(--muted); margin:6px 0 26px;}
+  .plan ul{margin:0 0 28px; display:flex; flex-direction:column; gap:12px; flex:1;}
+  .plan li{display:flex; align-items:flex-start; gap:9px; font-size:13.5px; color:var(--text);}
+  .plan li svg{width:15px; height:15px; stroke:var(--accent); flex-shrink:0; margin-top:2px;}
+
+  /* ---------- comparison table ---------- */
+  .compare-table{width:100%; border-collapse:collapse; background:var(--surface); border:1px solid var(--border); border-radius:14px; overflow:hidden;}
+  .compare-table th, .compare-table td{padding:16px 18px; text-align:left; border-bottom:1px solid var(--border); font-size:14px;}
+  .compare-table th{font-family:var(--font-mono); font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); font-weight:500;}
+  .compare-table td.center, .compare-table th.center{text-align:center;}
+  .compare-table tr.group-row{cursor:pointer; background:var(--surface-2);}
+  .compare-table tr.group-row td{font-weight:600; display:flex; align-items:center; gap:8px;}
+  .compare-table tr.group-row svg{width:14px; height:14px; transition:transform .2s;}
+  .compare-table tr.group-row.open svg{transform:rotate(90deg);}
+  .compare-table tr.detail-row{display:none;}
+  .compare-table tr.detail-row.show{display:table-row;}
+  .compare-table td svg.yes{width:16px; height:16px; stroke:var(--accent); margin:0 auto;}
+  .compare-table td.dash{color:var(--muted); text-align:center;}
+
+  /* ---------- testimonials ---------- */
+  .testi-wrap{position:relative; max-width:720px; margin:0 auto;}
+  .testi-track{overflow:hidden;}
+  .testi-slides{display:flex; transition:transform .5s cubic-bezier(.4,0,.2,1);}
+  .testi-slide{flex:0 0 100%; padding:6px;}
+  .testi-card{background:var(--surface); border:1px solid var(--border); border-radius:18px; padding:40px; text-align:center;}
+  .stars{display:flex; gap:4px; justify-content:center; margin-bottom:20px;}
+  .stars svg{width:16px; height:16px; fill:var(--accent); stroke:none;}
+  .testi-card blockquote{font-family:var(--font-display); font-size:19px; line-height:1.5; font-weight:500;}
+  .testi-person{display:flex; align-items:center; justify-content:center; gap:12px; margin-top:26px;}
+  .avatar{width:40px; height:40px; border-radius:50%; background:var(--accent-dim); display:flex; align-items:center; justify-content:center; font-family:var(--font-mono); font-weight:600; color:var(--accent); font-size:13px;}
+  .testi-person .who{text-align:left;}
+  .testi-person .who .name{font-weight:600; font-size:14px;}
+  .testi-person .who .role{font-size:12.5px; color:var(--muted);}
+  .testi-nav{display:flex; align-items:center; justify-content:center; gap:18px; margin-top:28px;}
+  .testi-arrow{width:36px; height:36px; border-radius:50%; border:1px solid var(--border-strong); background:var(--surface); display:flex; align-items:center; justify-content:center; transition:border-color .2s;}
+  .testi-arrow:hover{border-color:var(--accent);}
+  .testi-arrow svg{width:15px; height:15px;}
+  .testi-dots{display:flex; gap:8px;}
+  .testi-dots button{width:7px; height:7px; border-radius:50%; background:var(--border-strong); border:none; padding:0; transition:background .2s, width .2s;}
+  .testi-dots button.active{background:var(--accent); width:20px; border-radius:6px;}
+
+  /* ---------- faq ---------- */
+  .faq-list{max-width:760px; margin:0 auto; display:flex; flex-direction:column; gap:10px;}
+  .faq-item{border:1px solid var(--border); border-radius:12px; background:var(--surface); overflow:hidden;}
+  .faq-q{display:flex; align-items:center; justify-content:space-between; padding:20px 22px; width:100%; background:none; border:none; color:var(--text); font-family:var(--font-body); font-size:15.5px; font-weight:600; text-align:left;}
+  .faq-q svg{width:16px; height:16px; flex-shrink:0; transition:transform .25s;}
+  .faq-item.open .faq-q svg{transform:rotate(45deg);}
+  .faq-a{max-height:0; overflow:hidden; transition:max-height .3s ease;}
+  .faq-a p{padding:0 22px 20px; color:var(--muted); font-size:14.5px; line-height:1.6;}
+
+  /* ---------- blog ---------- */
+  .blog-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:22px;}
+  .blog-card{border:1px solid var(--border); border-radius:16px; overflow:hidden; background:var(--surface); transition:transform .25s, border-color .25s;}
+  .blog-card:hover{transform:translateY(-4px); border-color:var(--accent);}
+  .blog-thumb{height:150px; position:relative; overflow:hidden;}
+  .blog-body{padding:22px;}
+  .blog-cat{font-family:var(--font-mono); font-size:11px; color:var(--accent); text-transform:uppercase; letter-spacing:.06em;}
+  .blog-card h3{font-size:16.5px; margin:10px 0 8px; line-height:1.35;}
+  .blog-card p{font-size:13.5px; color:var(--muted); margin-bottom:16px;}
+  .blog-read{font-size:13px; font-weight:600; color:var(--text); display:inline-flex; align-items:center; gap:6px;}
+  .blog-read svg{width:13px; height:13px; transition:transform .2s;}
+  .blog-card:hover .blog-read svg{transform:translateX(3px);}
+
+  /* ---------- cta band ---------- */
+  .cta-band{background:var(--surface-2); border-top:1px solid var(--border); border-bottom:1px solid var(--border); text-align:center;}
+  .cta-band h2{font-size:clamp(26px,3.4vw,38px); margin-bottom:14px;}
+  .cta-band p{color:var(--muted); margin-bottom:30px;}
+
+  /* ---------- contact ---------- */
+  .contact-grid{display:grid; grid-template-columns:1fr 1.3fr; gap:60px;}
+  .contact-info h2{font-size:clamp(26px,3.2vw,36px); margin-bottom:16px;}
+  .contact-info p{color:var(--muted); margin-bottom:32px;}
+  .contact-row{display:flex; gap:14px; align-items:flex-start; margin-bottom:22px;}
+  .contact-row .ci{width:34px; height:34px; border-radius:8px; background:var(--accent-dim); display:flex; align-items:center; justify-content:center; flex-shrink:0;}
+  .contact-row .ci svg{width:16px; height:16px; stroke:var(--accent);}
+  .contact-row .ct .k{font-size:13px; color:var(--muted);}
+  .contact-row .ct .v{font-size:14.5px; font-weight:500;}
+  .social-row{display:flex; gap:10px; margin-top:8px;}
+  .social-row a{width:36px; height:36px; border-radius:9px; border:1px solid var(--border-strong); display:flex; align-items:center; justify-content:center; transition:border-color .2s, color .2s;}
+  .social-row a:hover{border-color:var(--accent); color:var(--accent);}
+  .social-row svg{width:16px; height:16px;}
+
+  form.contact-form{background:var(--surface); border:1px solid var(--border); border-radius:18px; padding:32px;}
+  .field-row{display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;}
+  .field{display:flex; flex-direction:column; gap:6px; margin-bottom:16px;}
+  .field label{font-size:13px; font-weight:500; color:var(--muted);}
+  .field input, .field textarea{
+    background:var(--surface-2); border:1px solid var(--border-strong); border-radius:9px; padding:12px 14px;
+    color:var(--text); font-family:inherit; font-size:14.5px; transition:border-color .2s;
+  }
+  .field input:focus, .field textarea:focus{border-color:var(--accent); outline:none;}
+  .field.error input, .field.error textarea{border-color:var(--accent-2);}
+  .field .err-msg{font-size:12px; color:var(--accent-2); min-height:14px;}
+  .form-status{margin-top:14px; font-size:13.5px; padding:12px 14px; border-radius:9px; display:none;}
+  .form-status.success{display:block; background:var(--accent-dim); color:var(--accent);}
+  .form-status.error{display:block; background:rgba(255,107,74,.12); color:var(--accent-2);}
+
+  /* ---------- footer ---------- */
+  footer{padding:56px 0 34px; border-top:1px solid var(--border);}
+  .footer-grid{display:grid; grid-template-columns:1.4fr repeat(3,1fr); gap:32px; margin-bottom:44px;}
+  .footer-brand p{color:var(--muted); font-size:13.5px; margin-top:12px; max-width:260px;}
+  .footer-col h4{font-size:13px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; margin-bottom:16px; font-weight:600;}
+  .footer-col a{display:block; font-size:14px; color:var(--text); margin-bottom:12px; opacity:.85;}
+  .footer-col a:hover{color:var(--accent); opacity:1;}
+  .footer-bottom{display:flex; justify-content:space-between; align-items:center; padding-top:24px; border-top:1px solid var(--border); font-size:12.5px; color:var(--muted); flex-wrap:wrap; gap:12px;}
+
+  /* ---------- back to top ---------- */
+  #back-to-top{
+    position:fixed; bottom:26px; right:26px; width:44px; height:44px; border-radius:50%;
+    background:var(--accent); color:#04211D; border:none; display:flex; align-items:center; justify-content:center;
+    box-shadow:var(--shadow); opacity:0; pointer-events:none; transform:translateY(10px); transition:opacity .25s, transform .25s; z-index:800;
+  }
+  #back-to-top.show{opacity:1; pointer-events:auto; transform:translateY(0);}
+  #back-to-top svg{width:18px; height:18px;}
+
+  /* ---------- animated counters helper ---------- */
+  .cv{opacity:0; transform:translateY(18px); transition:opacity .6s ease, transform .6s ease;}
+  .cv.in{opacity:1; transform:translateY(0);}
+
+  /* ---------- responsive ---------- */
+  @media (max-width:960px){
+    .feature-grid{grid-template-columns:repeat(2,1fr);}
+    .stats-grid{grid-template-columns:repeat(2,1fr);}
+    .stat-cell:nth-child(3){border-left:none;}
+    .pricing-grid{grid-template-columns:1fr; max-width:420px; margin:0 auto;}
+    .plan.popular{transform:none;}
+    .compare-table{font-size:13px;}
+    .blog-grid{grid-template-columns:1fr;}
+    .contact-grid{grid-template-columns:1fr; gap:40px;}
+    .footer-grid{grid-template-columns:1fr 1fr; gap:28px;}
+  }
+  @media (max-width:720px){
+    .nav-links{display:none;}
+    .hamburger{display:flex;}
+    .trace-body{grid-template-columns:1fr; gap:14px;}
+    .feature-grid{grid-template-columns:1fr;}
+    .stats-grid{grid-template-columns:1fr 1fr;}
+    section{padding:76px 0;}
+    .field-row{grid-template-columns:1fr;}
+    .footer-grid{grid-template-columns:1fr;}
+  }
+</style>
+</head>
+<body>
+
+<div id="pulse-progress">
+  <svg preserveAspectRatio="none" viewBox="0 0 100 3">
+    <path id="pulse-fill" d="M0,1.5 L100,1.5" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100"/>
+  </svg>
+</div>
+
+<header>
+  <nav>
+    <a href="#top" class="logo" aria-label="Pulsewave home">
+      <svg class="logo-mark" viewBox="0 0 26 26" fill="none"><path d="M2 13H7L10 4L16 22L19 13H24" stroke="var(--accent)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Pulsewave
+    </a>
+    <div class="nav-links">
+      <a href="#product">Product</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#compare">Compare</a>
+      <a href="#faq">FAQ</a>
+      <a href="#blog">Blog</a>
+      <a href="#contact">Contact</a>
+    </div>
+    <div class="nav-actions">
+      <button class="theme-toggle" id="theme-toggle" aria-label="Toggle dark and light mode">
+        <svg id="theme-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+      </button>
+      <a href="#contact" class="btn btn-primary" style="display:none" id="nav-cta">Start free</a>
+      <button class="hamburger" id="hamburger" aria-label="Open menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+      </button>
+    </div>
+  </nav>
+  <div id="mobile-menu">
+    <a href="#product">Product</a>
+    <a href="#pricing">Pricing</a>
+    <a href="#compare">Compare</a>
+    <a href="#faq">FAQ</a>
+    <a href="#blog">Blog</a>
+    <a href="#contact">Contact</a>
+  </div>
+</header>
+
+<main id="top">
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-bg" aria-hidden="true">
+      <svg viewBox="0 0 1180 420" width="100%" height="420" preserveAspectRatio="xMidYMid slice">
+        <path id="hero-wave" d="M0,210 L120,210 L150,120 L180,300 L210,60 L240,340 L270,210 L420,210 L450,150 L480,270 L510,210 L680,210 L710,100 L740,320 L770,210 L940,210 L970,170 L1000,250 L1030,210 L1180,210"
+          fill="none" stroke="var(--accent)" stroke-width="1.6" opacity="0.55" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <div class="wrap hero-inner">
+      <div class="eyebrow">Now watching 4.1B requests / day</div>
+      <h1>See every request<br>before it becomes <span class="accent">an incident.</span></h1>
+      <p class="lead">Pulsewave traces, scores, and explains API behavior in real time — so your team fixes the anomaly instead of reading about it in a status-page apology.</p>
+      <div class="hero-cta">
+        <a href="#contact" class="btn btn-primary">Start monitoring free</a>
+        <a href="#product" class="btn btn-ghost">See it trace a request →</a>
+      </div>
+      <p class="hero-note">No credit card · 5-minute setup · SOC 2 Type II</p>
+    </div>
+
+    <div class="wrap">
+      <div class="trace-preview cv">
+        <div class="trace-top">
+          <div class="trace-dots"><span></span><span></span><span></span></div>
+          <span class="trace-label">live · GET /v2/checkout/session</span>
+        </div>
+        <div class="trace-body">
+          <div class="trace-stat"><div class="num" id="stat-p95">118ms</div><div class="lbl">p95 latency</div></div>
+          <div class="trace-stat"><div class="num" id="stat-err">0.03%</div><div class="lbl">error rate</div></div>
+          <div class="trace-stat"><div class="num" id="stat-rps">2,441</div><div class="lbl">requests / sec</div></div>
+        </div>
+        <div class="trace-graph">
+          <svg viewBox="0 0 1000 90" width="100%" height="90" preserveAspectRatio="none">
+            <polyline id="live-trace" fill="none" stroke="var(--accent)" stroke-width="2" points=""/>
+          </svg>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LOGO STRIP -->
+  <div class="logo-strip">
+    <div class="wrap">
+      <span class="tag">Trusted by engineering teams at</span>
+      <div class="marks">
+        <div>Norther</div><div>Vantable</div><div>Rootline</div><div>Fjord Pay</div><div>Havstack</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PRODUCT SHOWCASE -->
+  <section id="product">
+    <div class="wrap">
+      <div class="section-head">
+        <div class="eyebrow">Product</div>
+        <h2>Four ways to catch the problem<br>before your customers do.</h2>
+        <p>Each surface pulls from the same trace stream, so what you see in Live Trace is exactly what triggers an alert three seconds later.</p>
+      </div>
+      <div class="feature-grid">
+        <div class="feature-card cv">
+          <span class="tag">core</span>
+          <div class="fi"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-9 4 18 3-9h4"/></svg></div>
+          <h3>Live Trace</h3>
+          <p>Watch requests move through every service, queue, and cache in real time, with full payloads on tap.</p>
+        </div>
+        <div class="feature-card cv">
+          <span class="tag">ml-assisted</span>
+          <div class="fi"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div>
+          <h3>Anomaly Radar</h3>
+          <p>Baselines learn your traffic's normal shape, so a 40ms regression gets flagged, not buried in a dashboard.</p>
+        </div>
+        <div class="feature-card cv">
+          <span class="tag">reliability</span>
+          <div class="fi"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6z"/></svg></div>
+          <h3>SLA Guard</h3>
+          <p>Set an error budget per endpoint and get a five-minute warning before you breach it, not a postmortem after.</p>
+        </div>
+        <div class="feature-card cv">
+          <span class="tag">on-call</span>
+          <div class="fi"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg></div>
+          <h3>Smart Alerts</h3>
+          <p>Alerts route by root cause, not by which dashboard happened to notice — so the right person gets paged once.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STATS -->
+  <section class="stats-band" style="padding:0;">
+    <div class="wrap">
+      <div class="stats-grid">
+        <div class="stat-cell cv"><div class="num" data-target="4100000000" data-suffix="+">0</div><div class="lbl">requests traced daily</div></div>
+        <div class="stat-cell cv"><div class="num" data-target="99.99" data-decimals="2" data-suffix="%">0</div><div class="lbl">platform uptime</div></div>
+        <div class="stat-cell cv"><div class="num" data-target="140" data-suffix="ms">0</div><div class="lbl">median alert latency</div></div>
+        <div class="stat-cell cv"><div class="num" data-target="2300" data-suffix="+">0</div><div class="lbl">engineering teams</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PRICING -->
+  <section id="pricing">
+    <div class="wrap">
+      <div class="section-head" style="margin-left:auto;margin-right:auto;text-align:center;">
+        <div class="eyebrow" style="justify-content:center;">Pricing</div>
+        <h2>Priced by traced requests,<br>not by how many people you invite.</h2>
+        <p style="margin-left:auto;margin-right:auto;">Every plan includes unlimited seats. Upgrade when your traffic grows, not when your headcount does.</p>
+      </div>
+
+      <div class="pricing-toggle">
+        <span id="label-monthly" class="active">Monthly</span>
+        <button class="switch" id="billing-switch" role="switch" aria-checked="false" aria-label="Toggle yearly billing"></button>
+        <span id="label-yearly">Yearly</span>
+        <span class="save-badge">Save 20%</span>
+      </div>
+
+      <div class="pricing-grid">
+        <div class="plan cv">
+          <div class="badge">Starter</div>
+          <h3>Starter</h3>
+          <p class="desc">For a single service finding its feet.</p>
+          <div class="price"><span class="amt" data-m="0" data-y="0">$0</span><span class="per">/mo</span></div>
+          <p class="billed">Free forever, up to 100k traced requests</p>
+          <ul>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>100k traced requests / mo</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Live Trace, 24-hour retention</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Community support</li>
+          </ul>
+          <a href="#contact" class="btn btn-ghost">Get started</a>
+        </div>
+
+        <div class="plan popular cv">
+          <div class="badge">Most popular</div>
+          <h3>Team</h3>
+          <p class="desc">For teams running production traffic.</p>
+          <div class="price"><span class="amt" data-m="79" data-y="63">$79</span><span class="per">/mo</span></div>
+          <p class="billed">Billed monthly · up to 5M requests / mo</p>
+          <ul>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>5M traced requests / mo</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Anomaly Radar + SLA Guard</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>30-day retention</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Priority support, 1hr response</li>
+          </ul>
+          <a href="#contact" class="btn btn-primary">Start free trial</a>
+        </div>
+
+        <div class="plan cv">
+          <div class="badge">Scale</div>
+          <h3>Scale</h3>
+          <p class="desc">For platforms with real blast radius.</p>
+          <div class="price"><span class="amt" data-m="329" data-y="263">$329</span><span class="per">/mo</span></div>
+          <p class="billed">Billed monthly · up to 50M requests / mo</p>
+          <ul>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>50M traced requests / mo</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Custom retention & SSO</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Dedicated Slack channel</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>99.99% uptime SLA</li>
+          </ul>
+          <a href="#contact" class="btn btn-ghost">Talk to sales</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- COMPARISON TABLE -->
+  <section id="compare">
+    <div class="wrap">
+      <div class="section-head">
+        <div class="eyebrow">Compare</div>
+        <h2>What's actually in each plan.</h2>
+        <p>Click a group to expand the individual capabilities.</p>
+      </div>
+      <table class="compare-table">
+        <thead>
+          <tr><th>Capability</th><th class="center">Starter</th><th class="center">Team</th><th class="center">Scale</th></tr>
+        </thead>
+        <tbody id="compare-body">
+          <tr class="group-row" data-group="tracing">
+            <td><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>Tracing & retention</td>
+            <td class="center dash">—</td><td class="center dash">—</td><td class="center dash">—</td>
+          </tr>
+          <tr class="detail-row" data-group="tracing"><td>Live Trace</td><td class="center"><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></td><td class="center"><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></td><td class="center"><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></td></tr>
+          <tr class="detail-row" data-group="tracing"><td>Trace retention</td><td class="center">24 hrs</td><td class="center">30 days</td><td class="center">Custom</td></tr>
+          <tr class="detail-row" data-group="tracing"><td>Payload capture</td><td class="center dash">—</td><td class="center"><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></td><td class="center"><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></td></tr>
+
+          <tr class="group-row" data-group="alerting">
+            <td><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>Detection & alerting</td>
+            <td class="center dash">—</td><td class="center dash">—</td><td class="center dash">—</td>
+          </tr>
+          <tr class="detail-row" data-group="alerting"><td>Anomaly Radar</td><td class="center dash">—</td><td class="center"><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></td><td class="center"><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></td></tr>
+          <tr class="detail-row" data-group="alerting"><td>SLA Guard error budgets</td><td class="center dash">—</td><td class="center"><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></td><td class="center"><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></td></tr>
+          <tr class="detail-row" data-group="alerting"><td>Custom routing rules</td><td class="center dash">—</td><td class="center dash">—</td><td class="center"><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></td></tr>
+
+          <tr class="group-row" data-group="support">
+            <td><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>Support & governance</td>
+            <td class="center dash">—</td><td class="center dash">—</td><td class="center dash">—</td>
+          </tr>
+          <tr class="detail-row" data-group="support"><td>SSO / SAML</td><td class="center dash">—</td><td class="center dash">—</td><td class="center"><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></td></tr>
+          <tr class="detail-row" data-group="support"><td>Response time SLA</td><td class="center dash">—</td><td class="center">1 hour</td><td class="center">15 min</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- TESTIMONIALS -->
+  <section id="testimonials" style="background:var(--surface); border-top:1px solid var(--border); border-bottom:1px solid var(--border);">
+    <div class="wrap">
+      <div class="section-head" style="margin-left:auto;margin-right:auto;text-align:center;">
+        <div class="eyebrow" style="justify-content:center;">Customers</div>
+        <h2>Teams that stopped guessing.</h2>
+      </div>
+      <div class="testi-wrap">
+        <div class="testi-track">
+          <div class="testi-slides" id="testi-slides">
+            <div class="testi-slide">
+              <div class="testi-card">
+                <div class="stars">★★★★★</div>
+                <blockquote>"We cut our mean-time-to-detect from 22 minutes to under 90 seconds. Anomaly Radar caught a checkout regression before a single customer complained."</blockquote>
+                <div class="testi-person"><div class="avatar">RK</div><div class="who"><div class="name">Rhea Kapoor</div><div class="role">Jawad Engineering</div></div></div>
+              </div>
+            </div>
+            <div class="testi-slide">
+              <div class="testi-card">
+                <div class="stars">★★★★★</div>
+                <blockquote>"Live Trace replaced four separate dashboards. Our on-call rotation actually looks forward to their shifts now, which still feels illegal to say."</blockquote>
+                <div class="testi-person"><div class="avatar">DM</div><div class="who"><div class="name">Dana Mercer</div><div class="role">Muhammad Hammad</div></div></div>
+              </div>
+            </div>
+            <div class="testi-slide">
+              <div class="testi-card">
+                <div class="stars">★★★★★</div>
+                <blockquote>"SLA Guard paid for itself in the first month by warning us five minutes before we'd have breached an enterprise contract's uptime clause."</blockquote>
+                <div class="testi-person"><div class="avatar">JT</div><div class="who"><div class="name">Jonah Tran</div><div class="role">CTO, Havstack</div></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="testi-nav">
+          <button class="testi-arrow" id="testi-prev" aria-label="Previous testimonial"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+          <div class="testi-dots" id="testi-dots"></div>
+          <button class="testi-arrow" id="testi-next" aria-label="Next testimonial"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section id="faq">
+    <div class="wrap">
+      <div class="section-head" style="margin-left:auto;margin-right:auto;text-align:center;">
+        <div class="eyebrow" style="justify-content:center;">FAQ</div>
+        <h2>Questions engineers actually ask.</h2>
+      </div>
+      <div class="faq-list">
+        <div class="faq-item">
+          <button class="faq-q">How does Pulsewave capture traces without adding latency? <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></button>
+          <div class="faq-a"><p>The agent samples asynchronously off the request path using a lightweight sidecar, so instrumentation adds well under a millisecond even at 95th percentile.</p></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-q">Can I self-host the collector for compliance reasons? <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></button>
+          <div class="faq-a"><p>Yes. Scale plans include a self-hosted collector that keeps raw payloads inside your VPC, forwarding only aggregated signal to Pulsewave.</p></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-q">What happens when I go over my traced request limit? <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></button>
+          <div class="faq-a"><p>We never drop traffic. You'll get a heads-up at 80% usage, and overage is billed at a flat per-million rate rather than throttling your visibility mid-incident.</p></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-q">Which languages and frameworks does the agent support? <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></button>
+          <div class="faq-a"><p>Native SDKs cover Node, Go, Python, Java, and Rust, plus an OpenTelemetry-compatible ingest endpoint for anything else already emitting OTel spans.</p></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-q">Is there a discount for early-stage startups? <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></button>
+          <div class="faq-a"><p>Companies under two years old with fewer than 20 employees get 50% off the Team plan for the first year — just mention it when you talk to sales.</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- BLOG -->
+  <section id="blog">
+    <div class="wrap">
+      <div class="section-head">
+        <div class="eyebrow">From the blog</div>
+        <h2>Notes on reliability, from the field.</h2>
+      </div>
+      <div class="blog-grid">
+        <article class="blog-card cv">
+          <div class="blog-thumb"><svg viewBox="0 0 400 150" width="100%" height="150" preserveAspectRatio="none"><rect width="400" height="150" fill="var(--surface-2)"/><polyline points="0,100 40,90 80,110 120,60 160,95 200,40 240,80 280,55 320,90 360,70 400,100" fill="none" stroke="var(--accent)" stroke-width="2"/></svg></div>
+          <div class="blog-body">
+            <span class="blog-cat">Incident response</span>
+            <h3>The five-minute rule for on-call escalation</h3>
+            <p>Why the teams with the fastest recovery times all share one unglamorous habit.</p>
+            <a href="#" class="blog-read">Read more <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+          </div>
+        </article>
+        <article class="blog-card cv">
+          <div class="blog-thumb"><svg viewBox="0 0 400 150" width="100%" height="150" preserveAspectRatio="none"><rect width="400" height="150" fill="var(--surface-2)"/><polyline points="0,60 40,80 80,50 120,95 160,70 200,110 240,65 280,90 320,50 360,85 400,60" fill="none" stroke="var(--accent-2)" stroke-width="2"/></svg></div>
+          <div class="blog-body">
+            <span class="blog-cat">Engineering</span>
+            <h3>Baselines beat thresholds for anomaly detection</h3>
+            <p>A static threshold assumes your traffic never changes. It always does.</p>
+            <a href="#" class="blog-read">Read more <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+          </div>
+        </article>
+        <article class="blog-card cv">
+          <div class="blog-thumb"><svg viewBox="0 0 400 150" width="100%" height="150" preserveAspectRatio="none"><rect width="400" height="150" fill="var(--surface-2)"/><polyline points="0,90 40,60 80,85 120,45 160,80 200,55 240,95 280,60 320,75 360,40 400,70" fill="none" stroke="var(--accent)" stroke-width="2"/></svg></div>
+          <div class="blog-body">
+            <span class="blog-cat">Case study</span>
+            <h3>How Fjord Pay traces 40M requests a day</h3>
+            <p>A look inside a payments platform's observability stack, end to end.</p>
+            <a href="#" class="blog-read">Read more <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA BAND -->
+  <section class="cta-band">
+    <div class="wrap">
+      <h2>Stop finding out about outages<br>from your customers.</h2>
+      <p>Set up Pulsewave in the time it takes to read this sentence twice.</p>
+      <a href="#contact" class="btn btn-primary">Start monitoring free</a>
+    </div>
+  </section>
+
+  <!-- CONTACT -->
+  <section id="contact">
+    <div class="wrap contact-grid">
+      <div class="contact-info">
+        <div class="eyebrow">Contact</div>
+        <h2>Let's get your APIs on the radar.</h2>
+        <p>Questions about a plan, a migration, or whether we support your stack — a real engineer answers, not a queue.</p>
+
+        <div class="contact-row">
+          <div class="ci"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z" opacity="0"/><path d="M3 7l9 6 9-6M3 7v10h18V7"/></svg></div>
+          <div class="ct"><div class="k">Email</div><div class="v">mhammad9177@gmail.com</div></div>
+        </div>
+        <div class="contact-row">
+          <div class="ci"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 01-2.2 2 19.8 19.8 0 01-8.6-3 19.5 19.5 0 01-6-6A19.8 19.8 0 012.1 4.2 2 2 0 014.1 2h3a2 2 0 012 1.7c.1.9.3 1.8.6 2.7a2 2 0 01-.5 2.1L8 9.7a16 16 0 006 6l1.2-1.2a2 2 0 012.1-.5c.9.3 1.8.5 2.7.6a2 2 0 011.7 2z"/></svg></div>
+          <div class="ct"><div class="k">Phone</div><div class="v">+92 (313) 1720042</div></div>
+        </div>
+        <div class="contact-row">
+          <div class="ci"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4.5 8-11a8 8 0 10-16 0c0 6.5 8 11 8 11z"/><circle cx="12" cy="11" r="3"/></svg></div>
+          <div class="ct"><div class="k">Office</div><div class="v">AL FAISAL TOWN LAHORE CANTT PAKISTAN</div></div>
+        </div>
+
+        <div class="social-row">
+          <a href="#" aria-label="Pulsewave on X"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4l16 16M20 4L4 20"/></svg></a>
+          <a href="#" aria-label="Pulsewave on GitHub"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6 0 00-1.3-3.2 4.2 4.2 0 00-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3 0 00-6.2 0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2 0 00-.1 3.2A4.6 4.6 0 004 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/></svg></a>
+          <a href="#" aria-label="Pulsewave on LinkedIn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/><path d="M10 9v12M10 13a4 4 0 018 0v8"/></svg></a>
+        </div>
+      </div>
+
+      <form class="contact-form" id="contact-form" novalidate>
+        <div class="field-row">
+          <div class="field" id="field-name">
+            <label for="f-name">Name</label>
+            <input type="text" id="f-name" name="name" placeholder="Ada Lovelace">
+            <span class="err-msg"></span>
+          </div>
+          <div class="field" id="field-email">
+            <label for="f-email">Work email</label>
+            <input type="email" id="f-email" name="email" placeholder="ada@company.com">
+            <span class="err-msg"></span>
+          </div>
+        </div>
+        <div class="field" id="field-company">
+          <label for="f-company">Company</label>
+          <input type="text" id="f-company" name="company" placeholder="Company name">
+          <span class="err-msg"></span>
+        </div>
+        <div class="field" id="field-message">
+          <label for="f-message">What are you hoping to solve?</label>
+          <textarea id="f-message" name="message" rows="4" placeholder="Tell us a bit about your API and current setup"></textarea>
+          <span class="err-msg"></span>
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%;" id="submit-btn">Send message</button>
+        <div class="form-status" id="form-status"></div>
+      </form>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <a href="#top" class="logo">
+          <svg class="logo-mark" viewBox="0 0 26 26" fill="none"><path d="M2 13H7L10 4L16 22L19 13H24" stroke="var(--accent)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Pulsewave
+        </a>
+        <p>Real-time API observability for teams who'd rather fix the anomaly than explain it afterward.</p>
+      </div>
+      <div class="footer-col">
+        <h4>Product</h4>
+        <a href="#product">Live Trace</a>
+        <a href="#product">Anomaly Radar</a>
+        <a href="#product">SLA Guard</a>
+        <a href="#pricing">Pricing</a>
+      </div>
+      <div class="footer-col">
+        <h4>Company</h4>
+        <a href="#blog">Blog</a>
+        <a href="#">Careers</a>
+        <a href="#">Security</a>
+        <a href="#contact">Contact</a>
+      </div>
+      <div class="footer-col">
+        <h4>Resources</h4>
+        <a href="#faq">FAQ</a>
+        <a href="#compare">Compare plans</a>
+        <a href="#">Status page</a>
+        <a href="#">Docs</a>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2026 Pulsewave, Inc. All rights reserved.</span>
+      <span>Made for engineers who hate surprises.</span>
+    </div>
+  </div>
+</footer>
+
+<button id="back-to-top" aria-label="Back to top">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+</button>
+
+<script>
+(function(){
+  /* ---------- theme toggle (in-memory only, no storage) ---------- */
+  var root = document.documentElement;
+  var themeBtn = document.getElementById('theme-toggle');
+  var themeIcon = document.getElementById('theme-icon');
+  var isLight = false;
+  function renderThemeIcon(){
+    themeIcon.innerHTML = isLight
+      ? '<path d="M21 12.8A9 9 0 1111.2 3 7 7 0 0021 12.8z"/>'
+      : '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>';
+  }
+  themeBtn.addEventListener('click', function(){
+    isLight = !isLight;
+    root.classList.toggle('light', isLight);
+    renderThemeIcon();
+  });
+  renderThemeIcon();
+
+  /* ---------- mobile menu ---------- */
+  var hamburger = document.getElementById('hamburger');
+  var mobileMenu = document.getElementById('mobile-menu');
+  hamburger.addEventListener('click', function(){ mobileMenu.classList.toggle('open'); });
+  mobileMenu.querySelectorAll('a').forEach(function(a){ a.addEventListener('click', function(){ mobileMenu.classList.remove('open'); }); });
+
+  /* ---------- scroll progress waveform ---------- */
+  var fill = document.getElementById('pulse-fill');
+  function updateProgress(){
+    var h = document.documentElement;
+    var scrolled = (h.scrollTop) / (h.scrollHeight - h.clientHeight) * 100;
+    fill.setAttribute('stroke-dashoffset', 100 - (scrolled || 0));
+  }
+  document.addEventListener('scroll', updateProgress, {passive:true});
+  updateProgress();
+
+  /* ---------- back to top ---------- */
+  var backBtn = document.getElementById('back-to-top');
+  document.addEventListener('scroll', function(){
+    backBtn.classList.toggle('show', window.scrollY > 700);
+  }, {passive:true});
+  backBtn.addEventListener('click', function(){ window.scrollTo({top:0, behavior:'smooth'}); });
+
+  /* ---------- scroll reveal ---------- */
+  var revealEls = document.querySelectorAll('.cv');
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); }
+    });
+  }, {threshold:0.15});
+  revealEls.forEach(function(el){ io.observe(el); });
+
+  /* ---------- animated counters ---------- */
+  var counters = document.querySelectorAll('.stat-cell .num[data-target]');
+  var counted = new WeakSet();
+  var cio = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(e.isIntersecting && !counted.has(e.target)){
+        counted.add(e.target);
+        animateCount(e.target);
+      }
+    });
+  }, {threshold:0.4});
+  counters.forEach(function(c){ cio.observe(c); });
+  function animateCount(el){
+    var target = parseFloat(el.getAttribute('data-target'));
+    var decimals = parseInt(el.getAttribute('data-decimals') || '0');
+    var suffix = el.getAttribute('data-suffix') || '';
+    var dur = 1400, start = null;
+    function frame(ts){
+      if(!start) start = ts;
+      var p = Math.min((ts - start) / dur, 1);
+      var eased = 1 - Math.pow(1 - p, 3);
+      var val = target * eased;
+      el.textContent = formatNum(val, decimals) + suffix;
+      if(p < 1) requestAnimationFrame(frame);
+      else el.textContent = formatNum(target, decimals) + suffix;
+    }
+    requestAnimationFrame(frame);
+  }
+  function formatNum(v, decimals){
+    if(decimals > 0) return v.toFixed(decimals);
+    v = Math.round(v);
+    return v.toLocaleString('en-US');
+  }
+
+  /* ---------- live trace sparkline (hero) ---------- */
+  var poly = document.getElementById('live-trace');
+  var pts = [];
+  for(var i=0;i<60;i++){ pts.push(40 + Math.random()*20); }
+  function renderTrace(){
+    var w = 1000, step = w/(pts.length-1);
+    var str = pts.map(function(y,i){ return (i*step).toFixed(1)+','+y.toFixed(1); }).join(' ');
+    poly.setAttribute('points', str);
+  }
+  renderTrace();
+  setInterval(function(){
+    pts.shift();
+    var last = pts[pts.length-1];
+    var next = Math.max(8, Math.min(82, last + (Math.random()*24-12)));
+    pts.push(next);
+    renderTrace();
+  }, 700);
+  setInterval(function(){
+    document.getElementById('stat-rps').textContent = (2200 + Math.floor(Math.random()*500)).toLocaleString('en-US');
+  }, 1400);
+
+  /* ---------- pricing toggle ---------- */
+  var sw = document.getElementById('billing-switch');
+  var labelM = document.getElementById('label-monthly');
+  var labelY = document.getElementById('label-yearly');
+  var amounts = document.querySelectorAll('.amt');
+  var yearly = false;
+  sw.addEventListener('click', function(){
+    yearly = !yearly;
+    sw.classList.toggle('on', yearly);
+    sw.setAttribute('aria-checked', yearly);
+    labelM.classList.toggle('active', !yearly);
+    labelY.classList.toggle('active', yearly);
+    amounts.forEach(function(a){
+      var val = yearly ? a.getAttribute('data-y') : a.getAttribute('data-m');
+      a.textContent = '$' + val;
+    });
+    document.querySelectorAll('.billed').forEach(function(b){
+      b.textContent = b.textContent.replace(/Billed (monthly|yearly)/, 'Billed ' + (yearly?'yearly':'monthly'));
+    });
+  });
+
+  /* ---------- comparison table expand ---------- */
+  document.querySelectorAll('.group-row').forEach(function(row){
+    row.addEventListener('click', function(){
+      var g = row.getAttribute('data-group');
+      var open = row.classList.toggle('open');
+      document.querySelectorAll('.detail-row[data-group="'+g+'"]').forEach(function(r){
+        r.classList.toggle('show', open);
+      });
+    });
+  });
+
+  /* ---------- testimonial carousel ---------- */
+  var slidesWrap = document.getElementById('testi-slides');
+  var slides = slidesWrap.children;
+  var dotsWrap = document.getElementById('testi-dots');
+  var idx = 0, timer;
+  for(var s=0; s<slides.length; s++){
+    var d = document.createElement('button');
+    if(s===0) d.className = 'active';
+    d.addEventListener('click', function(n){ return function(){ goTo(n); resetTimer(); }; }(s));
+    dotsWrap.appendChild(d);
+  }
+  function goTo(n){
+    idx = (n + slides.length) % slides.length;
+    slidesWrap.style.transform = 'translateX(-' + (idx*100) + '%)';
+    Array.from(dotsWrap.children).forEach(function(d,i){ d.classList.toggle('active', i===idx); });
+  }
+  document.getElementById('testi-prev').addEventListener('click', function(){ goTo(idx-1); resetTimer(); });
+  document.getElementById('testi-next').addEventListener('click', function(){ goTo(idx+1); resetTimer(); });
+  function resetTimer(){ clearInterval(timer); timer = setInterval(function(){ goTo(idx+1); }, 5000); }
+  var testiSection = document.getElementById('testimonials');
+  testiSection.addEventListener('mouseenter', function(){ clearInterval(timer); });
+  testiSection.addEventListener('mouseleave', resetTimer);
+  resetTimer();
+
+  /* ---------- FAQ accordion ---------- */
+  document.querySelectorAll('.faq-item').forEach(function(item){
+    var q = item.querySelector('.faq-q');
+    var a = item.querySelector('.faq-a');
+    q.addEventListener('click', function(){
+      var isOpen = item.classList.contains('open');
+      document.querySelectorAll('.faq-item.open').forEach(function(o){
+        if(o!==item){ o.classList.remove('open'); o.querySelector('.faq-a').style.maxHeight = null; }
+      });
+      item.classList.toggle('open', !isOpen);
+      a.style.maxHeight = !isOpen ? a.scrollHeight + 'px' : null;
+    });
+  });
+
+  /* ---------- contact form validation ---------- */
+  var form = document.getElementById('contact-form');
+  var status = document.getElementById('form-status');
+  var submitBtn = document.getElementById('submit-btn');
+  function setError(fieldId, msg){
+    var f = document.getElementById(fieldId);
+    f.classList.toggle('error', !!msg);
+    f.querySelector('.err-msg').textContent = msg || '';
+  }
+  form.addEventListener('submit', function(e){
+    e.preventDefault();
+    status.className = 'form-status';
+    var name = document.getElementById('f-name').value.trim();
+    var email = document.getElementById('f-email').value.trim();
+    var company = document.getElementById('f-company').value.trim();
+    var message = document.getElementById('f-message').value.trim();
+    var ok = true;
+    setError('field-name', name ? '' : (ok=false, 'Please enter your name'));
+    var emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    setError('field-email', emailValid ? '' : (ok=false, 'Please enter a valid work email'));
+    setError('field-company', company ? '' : (ok=false, 'Please enter your company'));
+    setError('field-message', message.length >= 10 ? '' : (ok=false, 'Tell us a little more (10+ characters)'));
+    if(!ok){
+      status.textContent = 'Please fix the highlighted fields and try again.';
+      status.classList.add('error');
+      return;
+    }
+    submitBtn.textContent = 'Sending…';
+    submitBtn.disabled = true;
+    setTimeout(function(){
+      submitBtn.textContent = 'Send message';
+      submitBtn.disabled = false;
+      status.textContent = 'Thanks, ' + name.split(' ')[0] + ' — a Pulsewave engineer will reply within one business day.';
+      status.classList.add('success');
+      form.reset();
+    }, 900);
+  });
+})();
+</script>
+</body>
+</html>

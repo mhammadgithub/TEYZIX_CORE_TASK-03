@@ -1,4 +1,3 @@
-# TEYZIX_CORE_TASK-03
 # Pulsewave — Interactive SaaS Landing Page
 
 **One-line description:** Pulsewave is a real-time API observability
